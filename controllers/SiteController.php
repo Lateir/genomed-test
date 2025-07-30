@@ -66,30 +66,21 @@ class SiteController extends Controller
                 mkdir($qrDir, 0755, true);
             }
 
-            // Валидируем short_code для предотвращения path traversal
-            $safeCode = preg_replace('/[^a-zA-Z0-9_-]/', '', $short->short_code);
-
             $writer = new PngWriter();
 
             $qr = new QrCode(Url::to(['site/redirect', 'code' => $short->short_code], true));
             $resultPng = $writer->write($qr);
 
-            $resultPng->saveToFile($qrDir . "/{$safeCode}.png");;
+            $resultPng->saveToFile($qrDir . "/{$short->short_code}.png");
 
             return [
                 'shortUrl' => Url::to(['site/redirect', 'code' => $short->short_code], true),
-                'qr' => Url::to("@web/qr/{$safeCode}.png", true),
+                'qr' => Url::to("@web/qr/{$short->short_code}.png", true),
             ];
         } catch (Exception $e) {
             Yii::error("Ошибка создания QR кода: " . $e->getMessage());
             return ['error' => 'Ошибка создания QR кода'];
         }
-
-
-        return [
-            'shortUrl' => Url::to(['site/redirect', 'code' => $short->short_code], true),
-            'qr' => Url::to("@web/qr/{$short->short_code}.png", true),
-        ];
     }
 
     public function actionRedirect($code)
