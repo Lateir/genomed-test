@@ -2,42 +2,18 @@
 
 namespace app\controllers;
 
+use app\models\ShortUrl;
+use app\models\UrlClickLog;
+use Endroid\QrCode\QrCode;
+use Endroid\QrCode\Writer\PngWriter;
 use Yii;
-use yii\filters\AccessControl;
+use yii\helpers\Url;
 use yii\web\Controller;
+use yii\web\NotFoundHttpException;
 use yii\web\Response;
-use yii\filters\VerbFilter;
-use app\models\LoginForm;
-use app\models\ContactForm;
 
 class SiteController extends Controller
 {
-    /**
-     * {@inheritdoc}
-     */
-    public function behaviors()
-    {
-        return [
-            'access' => [
-                'class' => AccessControl::class,
-                'only' => ['logout'],
-                'rules' => [
-                    [
-                        'actions' => ['logout'],
-                        'allow' => true,
-                        'roles' => ['@'],
-                    ],
-                ],
-            ],
-            'verbs' => [
-                'class' => VerbFilter::class,
-                'actions' => [
-                    'logout' => ['post'],
-                ],
-            ],
-        ];
-    }
-
     /**
      * {@inheritdoc}
      */
@@ -46,10 +22,6 @@ class SiteController extends Controller
         return [
             'error' => [
                 'class' => 'yii\web\ErrorAction',
-            ],
-            'captcha' => [
-                'class' => 'yii\captcha\CaptchaAction',
-                'fixedVerifyCode' => YII_ENV_TEST ? 'testme' : null,
             ],
         ];
     }
@@ -64,65 +36,84 @@ class SiteController extends Controller
         return $this->render('index');
     }
 
-    /**
-     * Login action.
-     *
-     * @return Response|string
-     */
-    public function actionLogin()
+    public function actionShorten()
     {
-        if (!Yii::$app->user->isGuest) {
-            return $this->goHome();
+        Yii::$app->response->format = Response::FORMAT_JSON;
+
+        $url = Yii::$app->request->post('url');
+
+        if (!filter_var($url, FILTER_VALIDATE_URL)) {
+            return ['error' => 'Невалидный URL'];
         }
 
-        $model = new LoginForm();
-        if ($model->load(Yii::$app->request->post()) && $model->login()) {
-            return $this->goBack();
+        if (!$this->checkUrlAvailable($url)) {
+            return ['error' => 'URL недоступен'];
         }
 
-        $model->password = '';
-        return $this->render('login', [
-            'model' => $model,
+        $short = ShortUrl::findOne(['original_url' => $url]) ?? new ShortUrl([
+            'original_url' => $url,
+            'short_code' => Yii::$app->security->generateRandomString(6)
         ]);
-    }
 
-    /**
-     * Logout action.
-     *
-     * @return Response
-     */
-    public function actionLogout()
-    {
-        Yii::$app->user->logout();
-
-        return $this->goHome();
-    }
-
-    /**
-     * Displays contact page.
-     *
-     * @return Response|string
-     */
-    public function actionContact()
-    {
-        $model = new ContactForm();
-        if ($model->load(Yii::$app->request->post()) && $model->contact(Yii::$app->params['adminEmail'])) {
-            Yii::$app->session->setFlash('contactFormSubmitted');
-
-            return $this->refresh();
+        if ($short->isNewRecord && !$short->save()) {
+            return ['error' => 'Ошибка при сохранении'];
         }
-        return $this->render('contact', [
-            'model' => $model,
-        ]);
+
+        try {
+            // Создаем директорию если не существует
+            $qrDir = Yii::getAlias('@webroot/qr');
+            if (!is_dir($qrDir)) {
+                mkdir($qrDir, 0755, true);
+            }
+
+            // Валидируем short_code для предотвращения path traversal
+            $safeCode = preg_replace('/[^a-zA-Z0-9_-]/', '', $short->short_code);
+
+            $writer = new PngWriter();
+
+            $qr = new QrCode(Url::to(['site/redirect', 'code' => $short->short_code], true));
+            $resultPng = $writer->write($qr);
+
+            $resultPng->saveToFile($qrDir . "/{$safeCode}.png");;
+
+            return [
+                'shortUrl' => Url::to(['site/redirect', 'code' => $short->short_code], true),
+                'qr' => Url::to("@web/qr/{$safeCode}.png", true),
+            ];
+        } catch (Exception $e) {
+            Yii::error("Ошибка создания QR кода: " . $e->getMessage());
+            return ['error' => 'Ошибка создания QR кода'];
+        }
+
+
+        return [
+            'shortUrl' => Url::to(['site/redirect', 'code' => $short->short_code], true),
+            'qr' => Url::to("@web/qr/{$short->short_code}.png", true),
+        ];
     }
 
-    /**
-     * Displays about page.
-     *
-     * @return string
-     */
-    public function actionAbout()
+    public function actionRedirect($code)
     {
-        return $this->render('about');
+        $model = ShortUrl::findOne(['short_code' => $code]);
+        if (!$model) {
+            throw new NotFoundHttpException("Ссылка не найдена");
+        }
+
+        $model->updateCounters(['clicks' => 1]);
+
+        $log = new UrlClickLog([
+            'short_url_id' => $model->id,
+            'ip_address' => Yii::$app->request->userIP
+        ]);
+        $log->save(false);
+
+        return $this->redirect($model->original_url);
     }
+
+    private function checkUrlAvailable($url)
+    {
+        $headers = @get_headers($url);
+        return $headers && strpos($headers[0], '200') !== false;
+    }
+
 }
