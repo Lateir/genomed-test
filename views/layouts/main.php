@@ -16,6 +16,10 @@ $this->registerMetaTag(['name' => 'viewport', 'content' => 'width=device-width, 
 $this->registerMetaTag(['name' => 'description', 'content' => $this->params['meta_description'] ?? '']);
 $this->registerMetaTag(['name' => 'keywords', 'content' => $this->params['meta_keywords'] ?? '']);
 $this->registerLinkTag(['rel' => 'icon', 'type' => 'image/x-icon', 'href' => Yii::getAlias('@web/favicon.ico')]);
+$this->registerLinkTag(['rel' => 'preconnect', 'href' => 'https://fonts.googleapis.com']);
+$this->registerLinkTag(['rel' => 'preconnect', 'href' => 'https://fonts.gstatic.com', 'crossorigin' => '']);
+$this->registerLinkTag(['rel' => 'stylesheet', 'href' => 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap']);
+$this->registerLinkTag(['rel' => 'stylesheet', 'href' => 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css']);
 
 // Регистрируем дополнительные стили
 $this->registerCss('
@@ -174,14 +178,6 @@ $this->registerCss('
     .footer a:hover {
         color: var(--primary-color, #0d6efd); /* fallback если переменная не определена */
     }
-    
-    @media (max-width: 576px) {
-        .footer {
-            position: static;
-            margin: 3rem auto 1rem;
-            text-align: center;
-        }
-    }
 
     .alert {
         border-radius: 12px;
@@ -201,23 +197,6 @@ $this->registerCss('
         border-left: 4px solid #ef4444;
     }
 
-    @media (max-width: 576px) {
-        .app-card {
-            margin: 1rem;
-            padding: 2rem 1.5rem;
-        }
-        
-        .app-title {
-            font-size: 2rem;
-        }
-        
-        .footer {
-            position: relative;
-            text-align: center;
-            margin-top: 2rem;
-        }
-    }
-
     /* Анимация появления */
     .app-card {
         animation: fadeInUp 0.6s ease-out;
@@ -235,11 +214,6 @@ $this->registerCss('
     }
 ');
 
-// Подключаем Google Fonts
-$this->registerLinkTag(['rel' => 'preconnect', 'href' => 'https://fonts.googleapis.com']);
-$this->registerLinkTag(['rel' => 'preconnect', 'href' => 'https://fonts.gstatic.com', 'crossorigin' => '']);
-$this->registerLinkTag(['rel' => 'stylesheet', 'href' => 'https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap']);
-$this->registerLinkTag(['rel' => 'stylesheet', 'href' => 'https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.5/font/bootstrap-icons.css']);
 ?>
 <?php $this->beginPage() ?>
 <!DOCTYPE html>
@@ -253,7 +227,7 @@ $this->registerLinkTag(['rel' => 'stylesheet', 'href' => 'https://cdn.jsdelivr.n
 
 <div class="main-container">
     <div class="app-card">
-        <h1 class="app-title">QR Generator</h1>
+        <h1 class="app-title">Генератор QR</h1>
         <p class="app-subtitle">Тестовое задание Геномед</p>
 
         <?= Alert::widget() ?>
