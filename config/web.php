@@ -14,7 +14,26 @@ $config = [
     'components' => [
         'request' => [
             // !!! insert a secret key in the following (if it is empty) - this is required by cookie validation
-            'cookieValidationKey' => 'LlazienvtZol7fiIV_tlggPAaDUIzYiK',
+            'cookieValidationKey' => '',
+            'trustedHosts' => [
+                '172.17.0.0/16',    // default Docker bridge
+                '10.0.0.0/8',
+                '192.168.0.0/16',
+            ],
+            'ipHeaders' => [
+                'X-Forwarded-For',
+                'X-Real-IP',
+                'X-Forwarded',
+                'X-Cluster-Client-IP',
+                'Client-IP',
+            ],
+            'secureHeaders' => [
+                'X-Forwarded-For',
+                'X-Forwarded-Host',
+                'X-Forwarded-Proto',
+                'X-Forwarded-Port',
+                'X-Real-IP',
+            ],
         ],
         'cache' => [
             'class' => 'yii\caching\FileCache',
