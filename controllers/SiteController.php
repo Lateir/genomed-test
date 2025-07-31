@@ -2,18 +2,22 @@
 
 namespace app\controllers;
 
-use app\models\ShortUrl;
-use app\models\UrlClickLog;
-use Endroid\QrCode\QrCode;
-use Endroid\QrCode\Writer\PngWriter;
+use app\models\services\UrlShortenerService;
 use Yii;
-use yii\helpers\Url;
 use yii\web\Controller;
 use yii\web\NotFoundHttpException;
 use yii\web\Response;
 
 class SiteController extends Controller
 {
+    private $urlShortenerService;
+
+    public function init()
+    {
+        parent::init();
+        $this->urlShortenerService = new UrlShortenerService();
+    }
+
     /**
      * {@inheritdoc}
      */
@@ -27,7 +31,7 @@ class SiteController extends Controller
     }
 
     /**
-     * Displays homepage.
+     * Отображает главную страницу
      *
      * @return string
      */
@@ -36,75 +40,28 @@ class SiteController extends Controller
         return $this->render('index');
     }
 
+    /**
+     * Создает короткую ссылку
+     */
     public function actionShorten()
     {
         Yii::$app->response->format = Response::FORMAT_JSON;
 
         $url = Yii::$app->request->post('url');
-
-        if (!filter_var($url, FILTER_VALIDATE_URL)) {
-            return ['error' => 'Невалидный URL'];
-        }
-
-        if (!$this->checkUrlAvailable($url)) {
-            return ['error' => 'URL недоступен'];
-        }
-
-        $short = ShortUrl::findOne(['original_url' => $url]) ?? new ShortUrl([
-            'original_url' => $url,
-            'short_code' => Yii::$app->security->generateRandomString(6)
-        ]);
-
-        if ($short->isNewRecord && !$short->save()) {
-            return ['error' => 'Ошибка при сохранении'];
-        }
-
-        try {
-            // Создаем директорию если не существует
-            $qrDir = Yii::getAlias('@webroot/qr');
-            if (!is_dir($qrDir)) {
-                mkdir($qrDir, 0755, true);
-            }
-
-            $writer = new PngWriter();
-
-            $qr = new QrCode(Url::to(['site/redirect', 'code' => $short->short_code], true));
-            $resultPng = $writer->write($qr);
-
-            $resultPng->saveToFile($qrDir . "/{$short->short_code}.png");
-
-            return [
-                'shortUrl' => Url::to(['site/redirect', 'code' => $short->short_code], true),
-                'qr' => Url::to("@web/qr/{$short->short_code}.png", true),
-            ];
-        } catch (Exception $e) {
-            Yii::error("Ошибка создания QR кода: " . $e->getMessage());
-            return ['error' => 'Ошибка создания QR кода'];
-        }
+        return $this->urlShortenerService->shortenUrl($url);
     }
 
+    /**
+     * Перенаправляет по короткой ссылке
+     */
     public function actionRedirect($code)
     {
-        $model = ShortUrl::findOne(['short_code' => $code]);
-        if (!$model) {
+        $shortUrl = $this->urlShortenerService->processRedirect($code);
+
+        if ($shortUrl === null) {
             throw new NotFoundHttpException("Ссылка не найдена");
         }
 
-        $model->updateCounters(['clicks' => 1]);
-
-        $log = new UrlClickLog([
-            'short_url_id' => $model->id,
-            'ip_address' => Yii::$app->request->userIP
-        ]);
-        $log->save(false);
-
-        return $this->redirect($model->original_url);
+        return $this->redirect($shortUrl->original_url);
     }
-
-    private function checkUrlAvailable($url)
-    {
-        $headers = @get_headers($url);
-        return $headers && strpos($headers[0], '200') !== false;
-    }
-
 }
